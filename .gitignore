@@ -1,0 +1,67 @@
+# ========================
+# Data — never commit raw data
+# ========================
+backend/data/raw/
+backend/data/processed/
+*.csv
+*.pkl
+*.joblib
+
+# ========================
+# Python
+# ========================
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# ========================
+# Environment & Secrets
+# ========================
+.env
+.env.*
+!.env.example        # keep the example template, ignore real ones
+
+# ========================
+# Jupyter (don't want notebooks in prod repo)
+# ========================
+*.ipynb
+.ipynb_checkpoints/
+
+# ========================
+# GCP
+# ========================
+*.json               # service account key files
+gcp-key*.json
+service-account*.json
+
+# ========================
+# Docker
+# ========================
+.docker/
+
+# ========================
+# macOS
+# ========================
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ========================
+# IDEs
+# ========================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ========================
+# Logs & misc
+# ========================
+*.log
+*.tmp
