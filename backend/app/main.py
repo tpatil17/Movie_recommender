@@ -9,8 +9,7 @@ from app.models.hybrid import HybridRecommender
 from app.state import models
 from app.routes.recommendations import router as recommendations_router
 
-# Global model state — loaded once at startup
-models = {}
+
 
 
 @asynccontextmanager
