@@ -1,8 +1,8 @@
+import os
 import pandas as pd
 import ast
 import numpy as np
-import os
-
+from io import BytesIO
 
 # Resolves to backend/data/raw regardless of where Python is run from
 _DEFAULT_DATA_DIR = os.path.normpath(os.path.join(
@@ -12,19 +12,28 @@ _DEFAULT_DATA_DIR = os.path.normpath(os.path.join(
     "data",
     "raw"
 ))
+# Detect if running in GCP Cloud Run
+_GCS_BUCKET = os.getenv("GCS_BUCKET")  # set this env var in Cloud Run
 
+def _read_csv(filename: str, data_dir: str, **kwargs) -> pd.DataFrame:
+    """
+    Reads a CSV either from GCS (in production) or local disk (in development).
+    """
+    if _GCS_BUCKET:
+        from google.cloud import storage
+        client = storage.Client()
+        bucket = client.bucket(_GCS_BUCKET)
+        blob = bucket.blob(f"raw/{filename}")
+        data = blob.download_as_bytes()
+        return pd.read_csv(BytesIO(data), **kwargs)
+    else:
+        return pd.read_csv(os.path.join(data_dir, filename), **kwargs)
 
 def load_clean_data(data_dir: str = _DEFAULT_DATA_DIR):
-    """
-    Loads raw CSVs, cleans and merges them into a single DataFrame.
-    Returns: (data, ratings)
-      - data: merged movies + credits + engineered features
-      - ratings: raw user ratings for collaborative filtering
-    """
-    meta = pd.read_csv(os.path.join(data_dir, 'movies_metadata.csv'), low_memory=False)
-    ratings = pd.read_csv(os.path.join(data_dir, 'ratings_small.csv'))
-    credits = pd.read_csv(os.path.join(data_dir, 'credits.csv'))
-    links = pd.read_csv(os.path.join(data_dir, 'links_small.csv'))
+    meta = _read_csv('movies_metadata.csv', data_dir, low_memory=False)
+    ratings = _read_csv('ratings_small.csv', data_dir)
+    credits = _read_csv('credits.csv', data_dir)
+    links = _read_csv('links_small.csv', data_dir)
 
     # Clean IDs — metadata has messy mixed-type ID column
     meta['id'] = pd.to_numeric(meta['id'], errors='coerce')

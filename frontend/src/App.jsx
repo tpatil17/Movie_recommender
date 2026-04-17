@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react"
+const API = import.meta.env.VITE_API_URL || ""
 
 function App() {
   const [query, setQuery] = useState("")
@@ -9,17 +10,18 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
+
   // Debounced search for autocomplete
   const searchMovies = useCallback(async (q) => {
     if (q.length < 2) { setSuggestions([]); return }
     try {
-      const res = await fetch(`/api/movies/search?q=${encodeURIComponent(q)}`)
+      const res = await fetch(`${API}/api/movies/search?q=${encodeURIComponent(q)}`)
       const data = await res.json()
       setSuggestions(data.results || [])
     } catch {
       setSuggestions([])
     }
-  }, [])
+  }, [API])
 
   const handleQueryChange = (e) => {
     const val = e.target.value
@@ -39,7 +41,7 @@ function App() {
     setError("")
     setResults([])
     try {
-      const res = await fetch("/api/recommendations", {
+      const res = await fetch(`${API}/api/recommendations`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: userId, title: selectedTitle, top_n: 10 })

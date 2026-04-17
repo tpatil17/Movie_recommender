@@ -45,7 +45,7 @@ app = FastAPI(
 # Allow React frontend to call this API locally
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=["http://localhost:5173", "http://localhost:3000","https://movie-recommender-1726.web.app","https://movie-recommender-1726.firebaseapp.com"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
