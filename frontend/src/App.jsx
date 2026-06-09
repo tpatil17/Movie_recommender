@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 const API = import.meta.env.VITE_API_URL || ""
 
 function App() {
@@ -9,9 +9,14 @@ function App() {
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const debounceTimer = useRef(null)
 
+  // Ping the backend on mount to keep the connection warm and trigger any
+  // lazy initialization before the user's first real request.
+  useEffect(() => {
+    fetch(`${API}/health`).catch(() => {})
+  }, [API])
 
-  // Debounced search for autocomplete
   const searchMovies = useCallback(async (q) => {
     if (q.length < 2) { setSuggestions([]); return }
     try {
@@ -26,7 +31,9 @@ function App() {
   const handleQueryChange = (e) => {
     const val = e.target.value
     setQuery(val)
-    searchMovies(val)
+    // Debounce: wait 300ms after the user stops typing before hitting the API
+    clearTimeout(debounceTimer.current)
+    debounceTimer.current = setTimeout(() => searchMovies(val), 300)
   }
 
   const handleSelectSuggestion = (title) => {

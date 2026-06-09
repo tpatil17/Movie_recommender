@@ -1,3 +1,5 @@
+import bisect
+
 from fastapi import APIRouter, HTTPException
 from app.state import models
 from app.schemas import RecommendationRequest, RecommendationResponse
@@ -25,15 +27,33 @@ def get_recommendations(request: RecommendationRequest):
 
 @router.get("/movies/search")
 def search_movies(q: str):
-    data = models.get("data")
-    if data is None:
+    titles_sorted = models.get("titles_sorted")
+    if titles_sorted is None:
         raise HTTPException(status_code=503, detail="Models not loaded yet")
 
-    # Case-insensitive search against movie titles
-    mask = data['title'].str.contains(q, case=False, na=False)
-    matches = data[mask]['title'].drop_duplicates().head(10).tolist()
+    q_lower = q.lower()
 
-    return {"results": matches}
+    # Fast O(log n) prefix scan using bisect, then linear walk for matches
+    # Falls back to substring search so "Dark Knight" still matches "The Dark Knight"
+    prefix_matches: list[str] = []
+    substring_matches: list[str] = []
+
+    lo = bisect.bisect_left(titles_sorted, q.capitalize())
+    for title in titles_sorted[lo:lo + 500]:
+        if title.lower().startswith(q_lower):
+            prefix_matches.append(title)
+            if len(prefix_matches) >= 10:
+                break
+
+    # If we have fewer than 10 prefix hits, fill with substring matches
+    if len(prefix_matches) < 10:
+        for title in titles_sorted:
+            if q_lower in title.lower() and title not in prefix_matches:
+                substring_matches.append(title)
+                if len(prefix_matches) + len(substring_matches) >= 10:
+                    break
+
+    return {"results": (prefix_matches + substring_matches)[:10]}
 
 
 @router.get("/movies/{tmdb_id}")

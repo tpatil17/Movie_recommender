@@ -28,6 +28,22 @@ async def lifespan(app: FastAPI):
     models["content"] = content_model
     models["data"] = data
 
+    # Pre-warm similarity cache for the most popular movies so the first
+    # real user query is served from cache rather than computed cold.
+    print("Pre-warming similarity cache...")
+    if 'vote_count' in data.columns:
+        popular_titles = (
+            data.dropna(subset=['vote_count'])
+            .nlargest(50, 'vote_count')['title']
+            .drop_duplicates()
+            .tolist()
+        )
+        content_model.warm_cache(popular_titles)
+        print(f"Cache warmed for {len(popular_titles)} popular titles.")
+
+    # Build a sorted title list for fast prefix search (O(log n) vs O(n) scan)
+    models["titles_sorted"] = sorted(data['title'].dropna().drop_duplicates().tolist())
+
     print("Models ready.")
     yield
 

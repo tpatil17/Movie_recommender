@@ -6,7 +6,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 class ContentBasedModel:
     """
     Content-based recommender using cast, director, and genre similarity.
-    Computes similarity on-demand per query to avoid storing an O(n^2) matrix.
+    Computes similarity on-demand per query and caches results to avoid
+    recomputing the O(n) cosine pass for the same title twice.
     """
 
     def __init__(self, data: pd.DataFrame):
@@ -20,14 +21,21 @@ class ContentBasedModel:
             self.data.index, index=self.data['title']
         ).drop_duplicates()
 
+        # Result cache: title → list[dict] (avoids recomputing cosine pass)
+        self._cache: dict[str, list] = {}
+
     def get_similar_movies(self, title: str, top_n: int = 25) -> list[dict]:
         """
         Returns top_n movies most similar to the given title.
         Each result is a dict with title, tmdb_id, and genres.
+        Results are cached so repeated queries for the same title are instant.
         Returns empty list if title not found.
         """
         if title not in self.indices:
             return []
+
+        if title in self._cache:
+            return self._cache[title]
 
         idx = self.indices[title]
 
@@ -44,7 +52,7 @@ class ContentBasedModel:
 
         movies = self.data.iloc[movie_indices][['title', 'id', 'genres']].copy()
 
-        return [
+        result = [
             {
                 "title": row['title'],
                 "tmdb_id": int(row['id']),
@@ -52,6 +60,15 @@ class ContentBasedModel:
             }
             for _, row in movies.iterrows()
         ]
+
+        self._cache[title] = result
+        return result
+
+    def warm_cache(self, titles: list[str]) -> None:
+        """Pre-computes and caches similarity for the given titles at startup."""
+        for title in titles:
+            if title not in self._cache:
+                self.get_similar_movies(title)
 
     def _compute_similarity(self, idx: int):
         """Computes cosine similarity between one movie and all others."""
