@@ -4,7 +4,7 @@ A full-stack hybrid recommendation engine combining **content-based filtering** 
 
 **[Live Demo](https://movie-recommender-1726.web.app)** · **[GitHub](https://github.com/tpatil17/Movie_recommender)**
 
-> ⚠️ First load may take 30–60 seconds due to model initialization on GCP Cloud Run.
+> Cold-start latency has been significantly reduced — the top 50 most popular movies are pre-warmed at startup and all results are cached, so most queries are served in under 10ms.
 
 ---
 
@@ -38,6 +38,18 @@ The hybrid approach outperforms either method alone — content-based filtering 
 - Precision@10: **0.74**
 - Recall@10: **0.44**
 - Significantly outperforms random baseline (Precision@10: 0.31)
+
+---
+
+## Performance Optimizations
+
+| Optimization | Details |
+|---|---|
+| Similarity cache | Results for each title are cached in memory — repeated queries skip the cosine pass entirely |
+| Startup pre-warming | Top 50 movies by popularity are pre-computed at boot so the first user query is instant |
+| Bisect search index | `/movies/search` uses a sorted title list + `bisect` for O(log n) prefix lookup instead of a full DataFrame scan |
+| Frontend debounce | Search input is debounced 300ms to avoid redundant API calls on every keystroke |
+| Connection warm-up | A `GET /health` ping fires on page load to establish the TCP connection before the first real request |
 
 ---
 
@@ -100,7 +112,7 @@ GET  /api/movies/{tmdb_id}          → movie detail
 
 **Example request:**
 ```bash
-curl -X POST https://movie-recommender-w2s64z6b6q-uc.a.run.app/api/recommendations \
+curl -X POST https://movie-recommender-364753763251.us-central1.run.app/api/recommendations \
   -H "Content-Type: application/json" \
   -d '{"user_id": 2, "title": "The Godfather", "top_n": 5}'
 ```
