@@ -37,4 +37,4 @@ jobs:
         env:
           CI: true
         run: |
-          PYTHONPATH=backend pytest services/backend/tests/ -v
+          PYTHONPATH=services/backend pytest services/backend/tests/ -v
