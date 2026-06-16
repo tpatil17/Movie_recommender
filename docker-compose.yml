@@ -2,12 +2,17 @@ version: '3.8'
 
 services:
   backend:
-    build:
-      context: ./services/backend
-      dockerfile: Dockerfile
+    build: ./services/backend
     ports:
       - "8000:8000"
-    volumes:
-      - ./services/backend/data:/app/data
-    env_file:
-      - ./services/backend/.env.example
+    environment:
+      - DATA_DIR=/app/data
+
+  mcp-server:
+    build: ./services/mcp-server
+    ports:
+      - "8001:8001"
+    environment:
+      - BACKEND_URL=http://backend:8000
+    depends_on:
+      - backend

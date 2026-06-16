@@ -56,6 +56,22 @@ def search_movies(q: str):
     return {"results": (prefix_matches + substring_matches)[:10]}
 
 
+@router.get("/movies/similar")
+def get_similar_movies(title: str, top_n: int = 10):
+    content_model = models.get("content")
+    if content_model is None:
+        raise HTTPException(status_code=503, detail="Models not loaded yet")
+
+    results = content_model.get_similar_movies(title, top_n=top_n)
+    if not results:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Movie '{title}' not found in content index"
+        )
+
+    return {"query_title": title, "results": results}
+
+
 @router.get("/movies/{tmdb_id}")
 def get_movie(tmdb_id: int):
     data = models.get("data")

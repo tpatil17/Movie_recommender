@@ -7,8 +7,6 @@ click==8.3.2
 Cython==3.2.4
 dnspython==2.8.0
 email-validator==2.3.0
-fastapi==0.111.0
-fastapi-cli==0.0.24
 h11==0.16.0
 httpcore==1.0.9
 httptools==0.7.1
@@ -52,3 +50,5 @@ uvicorn==0.29.0
 uvloop==0.22.1
 watchfiles==1.1.1
 websockets==16.0
+fastapi==0.137.1
+fastapi-cli==0.0.24
