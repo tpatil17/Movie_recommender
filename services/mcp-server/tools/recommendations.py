@@ -9,7 +9,7 @@ import httpx
 import os
 from typing import Optional
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000/api")
 
 # Placeholder user_id until Phase 2 session memory is implemented.
 # Phase 2 will derive a user profile from conversation history via

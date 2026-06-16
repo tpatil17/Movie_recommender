@@ -7,7 +7,7 @@ movies most similar to a seed title by cosine similarity score.
 import httpx
 import os
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000/api")
 
 async def get_similar(title: str, top_n: int = 10) -> dict:
     """

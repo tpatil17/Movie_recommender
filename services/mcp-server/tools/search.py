@@ -7,7 +7,7 @@ up to 10 matching titles to use as seeds for get_recommendations.
 import httpx
 import os
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000/api")
 
 async def search_movies(query: str) -> dict:
     """
