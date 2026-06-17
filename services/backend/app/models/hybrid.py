@@ -32,9 +32,37 @@ class HybridRecommender:
 
         if not similar_movies:
             return []
+        
+        #---
+        scored = []
+
+        for movie in similar_movies:
+            tmdb_id = movie['tmdb_id']
+            vote_average = movie.get('vote_average', 5.0)
+
+            if tmdb_id in self.tmdb_to_movielens:
+                movielens_id = self.tmdb_to_movielens[tmdb_id]
+                predicted_rating = self.collab_model.predict_rating(user_id, movielens_id)
+            else:
+                predicted_rating = 3.0
+
+            # Blend collaborative score with TMDB quality signal
+            # 70% collaborative, 30% vote_average (normalised to 0-5 scale)
+            blended_score = round(
+                0.7 * predicted_rating + 0.3 * (vote_average / 2),
+                2
+            )
+
+            scored.append({
+                "title": movie['title'],
+                "genres": movie['genres'],
+                "predicted_rating": blended_score,
+                "reason": self._build_reason(movie['genres'])
+            })
+        #---
 
         # Step 2 — collaborative: score each candidate with user's preferences
-        scored = []
+
         for movie in similar_movies:
             tmdb_id = movie['tmdb_id']
 
@@ -51,10 +79,16 @@ class HybridRecommender:
                 "predicted_rating": round(predicted_rating, 2),
                 "reason": self._build_reason(movie['genres'])
             })
+        seen: dict[str, dict] = {}
+        for movie in scored:
+            t = movie['title']
+            if t not in seen or movie['predicted_rating'] > seen[t]['predicted_rating']:
+                seen[t] = movie
 
-        # Step 3 — sort by predicted rating, return top_n
-        scored.sort(key=lambda x: x['predicted_rating'], reverse=True)
-        return scored[:top_n]
+        deduped = list(seen.values())
+        deduped.sort(key=lambda x: x['predicted_rating'], reverse=True)
+        return deduped[:top_n]
+
 
     def _build_reason(self, genres: list) -> str:
         """
@@ -66,3 +100,7 @@ class HybridRecommender:
         # Genres come in lowercased from loader, capitalize for display
         genre_names = [g.capitalize() for g in genres[:2]]
         return f"{' • '.join(genre_names)} match"
+    
+
+
+    

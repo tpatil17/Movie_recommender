@@ -125,13 +125,15 @@ def _clean_text_features(data: pd.DataFrame) -> pd.DataFrame:
 
 
 def _build_soup(data: pd.DataFrame) -> pd.DataFrame:
-    """Concatenates cast, director, genres into a single text blob."""
     def make_soup(row):
         cast = ' '.join(row['top_cast'])
-        director = row['director'] if isinstance(row['director'], str) else ''
-        genres = ' '.join(row['genres'])
-        return f"{cast} {director} {genres}"
+        # Repeat director 3x — single most important signal
+        director = (row['director'] + ' ') * 3 if isinstance(row['director'], str) else ''
+        # Repeat genres 2x — second strongest signal
+        genres = (' '.join(row['genres']) + ' ') * 2
+        # Add overview for semantic plot similarity
+        overview = str(row['overview']) if pd.notna(row.get('overview', '')) else ''
+        return f"{cast} {director} {genres} {overview}"
 
     data['soup'] = data.apply(make_soup, axis=1)
     return data
-
