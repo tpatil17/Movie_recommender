@@ -9,7 +9,8 @@ from app.models.hybrid import HybridRecommender
 from app.state import models
 from app.routes.recommendations import router as recommendations_router
 
-
+from prometheus_client import make_asgi_app
+from app.metrics import models_loaded
 
 
 @asynccontextmanager
@@ -43,7 +44,7 @@ async def lifespan(app: FastAPI):
 
     # Build a sorted title list for fast prefix search (O(log n) vs O(n) scan)
     models["titles_sorted"] = sorted(data['title'].dropna().drop_duplicates().tolist())
-
+    models_loaded.set(1)  # Indicate that models are loaded and ready
     print("Models ready.")
     yield
 
@@ -57,7 +58,8 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
-
+metrics_app = make_asgi_app()
+app.mount("/metrics", metrics_app)
 # Allow React frontend to call this API locally
 app.add_middleware(
     CORSMiddleware,

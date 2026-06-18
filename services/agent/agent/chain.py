@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 
 
 
+
 load_dotenv() # load environment variables from .env
 
 MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8001/sse")

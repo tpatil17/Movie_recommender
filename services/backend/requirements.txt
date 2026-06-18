@@ -52,3 +52,4 @@ watchfiles==1.1.1
 websockets==16.0
 fastapi==0.137.1
 fastapi-cli==0.0.24
+prometheus-client==0.20.0

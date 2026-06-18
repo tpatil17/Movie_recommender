@@ -1,7 +1,7 @@
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-
+from app.metrics import cache_hits, cache_misses
 
 class ContentBasedModel:
     def __init__(self, data: pd.DataFrame):
@@ -23,8 +23,9 @@ class ContentBasedModel:
             return []
 
         if title in self._cache:
+            cache_hits.inc()
             return self._cache[title]
-
+        cache_misses.inc()
         idx = self.indices[title]
 
         if isinstance(idx, pd.Series):

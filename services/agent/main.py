@@ -10,6 +10,9 @@ from pydantic import BaseModel
 from agent.chain import build_agent
 from langchain_core.messages import HumanMessage, AIMessage
 import uvicorn
+from metrics import chat_requests, chat_latency, active_sessions
+from prometheus_client import make_asgi_app
+import time
 
 agent_executor = None
 conversation_history: dict[str, list] ={}
@@ -30,6 +33,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+metrics_app = make_asgi_app()
+app.mount("/metrics", metrics_app)
 
 class ChatRequest(BaseModel):
     message: str
@@ -42,9 +47,11 @@ class ChatResponse(BaseModel):
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     session_id = request.session_id
+    start = time.time()
 
     if session_id not in conversation_history:
         conversation_history[session_id] = []
+        active_sessions.inc()
 
     conversation_history[session_id].append(
         HumanMessage(content=request.message)
@@ -54,11 +61,14 @@ async def chat(request: ChatRequest):
         "messages": conversation_history[session_id]
     })
 
+
     last_message = result["messages"][-1]
 
     conversation_history[session_id].append(
         AIMessage(content=last_message.content)
     )
+    chat_latency.observe(time.time() - start)
+    chat_requests.labels(status="success").inc()
     return ChatResponse(
         
         response=last_message.content,
@@ -67,7 +77,7 @@ async def chat(request: ChatRequest):
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "active_sessions": len(conversation_history)}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8002)
