@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-07-31T19:35:33.033124+00:00",
+  "users": 300,
+  "top_n": 10,
+  "pool": {
+    "mean_size": 9.81,
+    "min_size": 0,
+    "pct_below_k": 51.3,
+    "mean_recs_returned": 7.8,
+    "pct_short_of_k": 51.3
+  },
+  "retrieval": {
+    "mean_relevant_in_pool": 0.263,
+    "pct_users_with_empty_pool_hits": 80.7,
+    "precision_ceiling": 0.0263
+  },
+  "ranking": {
+    "content_order_precision": 0.0233,
+    "hybrid_precision": 0.025,
+    "mean_predicted_rating_spread": 0.993,
+    "mean_predicted_rating_stdev": 0.308,
+    "mean_unmapped_candidate_frac": 0.099
+  }
+}
