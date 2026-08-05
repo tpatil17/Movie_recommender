@@ -24,6 +24,12 @@ similar_requests = Counter(
     ["status"]
 )
 
+for_you_requests = Counter(
+    "for_you_requests_total",
+    "Total number of pure-collaborative 'recommend for you' requests",
+    ["status"]  # success, cold_start, error
+)
+
 # Latency histograms
 recommendation_latency = Histogram(
     "recommendation_latency_seconds",
@@ -35,6 +41,12 @@ search_latency = Histogram(
     "search_latency_seconds",
     "Time taken to return search results",
     buckets=[0.01, 0.05, 0.1, 0.25, 0.5]
+)
+
+for_you_latency = Histogram(
+    "for_you_latency_seconds",
+    "Time taken to rank the collaborative candidate pool for a user",
+    buckets=[0.1, 0.25, 0.5, 1.0, 2.0, 5.0]
 )
 
 # Cache metrics

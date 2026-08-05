@@ -12,6 +12,12 @@ from app.routes.recommendations import router as recommendations_router
 from prometheus_client import make_asgi_app
 from app.metrics import models_loaded
 
+# Minimum ratings a movie needs before SVD has learned a meaningful factor for
+# it. Below this, predictions regress to the global mean and the ranking is
+# noise. Matches --cf-min-support in eval_offline so the product path and the
+# measured path use the same pool.
+CF_MIN_SUPPORT = 5
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -27,7 +33,43 @@ async def lifespan(app: FastAPI):
 
     models["hybrid"] = HybridRecommender(content_model, collab_model, tmdb_to_movielens)
     models["content"] = content_model
+    models["collab"] = collab_model
     models["data"] = data
+
+    # --- Collaborative "recommend for you" support ---------------------------
+    # Offline evaluation showed the seed-anchored hybrid is retrieval-bound:
+    # 80% of users get a candidate pool containing nothing they liked. Pure CF
+    # over a broad pool scores roughly 3x better (precision@10 0.078 vs 0.026),
+    # so it is exposed as its own endpoint rather than left in the eval harness.
+    #
+    # Pool = movies with enough ratings for SVD to have learned a real factor.
+    # Below that support threshold predictions collapse toward the global mean.
+    movielens_to_meta = {}
+    meta_by_tmdb = {
+        int(row.id): (row.title, row.genres if isinstance(row.genres, list) else [])
+        for row in data.itertuples(index=False)
+    }
+    for tmdb_id, ml_id in tmdb_to_movielens.items():
+        meta = meta_by_tmdb.get(int(tmdb_id))
+        if meta is not None:
+            movielens_to_meta.setdefault(int(ml_id), {"title": meta[0], "genres": meta[1]})
+
+    support = ratings.groupby("movieId").size()
+    cf_candidates = [
+        int(m) for m, c in support.items()
+        if c >= CF_MIN_SUPPORT and int(m) in movielens_to_meta
+    ]
+
+    models["movielens_to_meta"] = movielens_to_meta
+    models["cf_candidates"] = cf_candidates
+    models["user_seen"] = (
+        ratings.groupby("userId")["movieId"].apply(lambda s: set(int(x) for x in s)).to_dict()
+    )
+    models["popular_ids"] = [
+        int(m) for m in support.sort_values(ascending=False).index
+        if int(m) in movielens_to_meta
+    ]
+    print(f"CF candidate pool: {len(cf_candidates)} movies (support >= {CF_MIN_SUPPORT})")
 
     # Pre-warm similarity cache for the most popular movies so the first
     # real user query is served from cache rather than computed cold.
