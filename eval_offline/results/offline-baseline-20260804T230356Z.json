@@ -1,0 +1,28 @@
+{
+  "timestamp": "2026-08-04T23:03:56.153935+00:00",
+  "params": {
+    "top_n": 10,
+    "rating_threshold": 4.0,
+    "test_frac": 0.3,
+    "seed": 42,
+    "users_evaluated": 300,
+    "mean_relevant_set_size": 24.74,
+    "catalog_size": 42277
+  },
+  "hybrid": {
+    "label": "hybrid",
+    "users_evaluated": 300,
+    "precision_at_k": 0.0253,
+    "recall_at_k": 0.0106,
+    "ndcg_at_k": 0.0326,
+    "catalog_coverage": 0.0192
+  },
+  "popularity_baseline": {
+    "label": "popularity",
+    "users_evaluated": 300,
+    "precision_at_k": 0.1,
+    "recall_at_k": 0.0692,
+    "ndcg_at_k": 0.1234,
+    "catalog_coverage": 0.0003
+  }
+}

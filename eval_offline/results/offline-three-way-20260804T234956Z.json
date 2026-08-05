@@ -1,0 +1,38 @@
+{
+  "timestamp": "2026-08-04T23:49:55.881459+00:00",
+  "params": {
+    "top_n": 10,
+    "rating_threshold": 4.0,
+    "test_frac": 0.3,
+    "seed": 42,
+    "cf_min_support": 5,
+    "cf_pool_size": 2848,
+    "users_evaluated": 300,
+    "mean_relevant_set_size": 24.74,
+    "catalog_size": 42277
+  },
+  "hybrid": {
+    "label": "hybrid",
+    "users_evaluated": 300,
+    "precision_at_k": 0.026,
+    "recall_at_k": 0.011,
+    "ndcg_at_k": 0.0386,
+    "catalog_coverage": 0.0191
+  },
+  "cf": {
+    "label": "cf",
+    "users_evaluated": 300,
+    "precision_at_k": 0.0777,
+    "recall_at_k": 0.0378,
+    "ndcg_at_k": 0.0878,
+    "catalog_coverage": 0.0051
+  },
+  "popularity_baseline": {
+    "label": "popularity",
+    "users_evaluated": 300,
+    "precision_at_k": 0.1537,
+    "recall_at_k": 0.0912,
+    "ndcg_at_k": 0.1948,
+    "catalog_coverage": 0.0009
+  }
+}
