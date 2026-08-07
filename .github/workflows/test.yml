@@ -33,7 +33,14 @@ jobs:
           pip install git+https://github.com/NicolasHug/Surprise.git
           pip install -r services/backend/requirements.txt
 
-      - name: Run tests
+      # Pure-function tests for the offline evaluation metrics. No CSVs, no
+      # models, no backend import, so these run in milliseconds and fail fast
+      # if the scoring math regresses. Kept before the backend suite because
+      # a broken metric silently invalidates every number we report.
+      - name: Run offline eval metric tests
+        run: pytest eval_offline/test_eval_offline.py -v
+
+      - name: Run backend tests
         env:
           CI: true
         run: |
