@@ -1,0 +1,13 @@
+# Data is fetched from GCS at runtime (see loader.py and GCS_BUCKET), so the
+# ~227MB of CSVs must never enter the build context.
+data/
+*.csv
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+tests/
+.env
+*.md

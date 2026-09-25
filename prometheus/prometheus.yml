@@ -2,13 +2,16 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+# Targets use compose service names, which resolve on the compose network.
+# host.docker.internal was only correct when the services ran on the host;
+# inside compose it points back at the host and finds nothing.
 scrape_configs:
   - job_name: "backend"
     static_configs:
-      - targets: ["host.docker.internal:8000"]
+      - targets: ["backend:8080"]
     metrics_path: "/metrics"
 
   - job_name: "agent"
     static_configs:
-      - targets: ["host.docker.internal:8002"]
+      - targets: ["agent:8002"]
     metrics_path: "/metrics"

@@ -7,7 +7,9 @@ made during the turn, so the evaluation harness can score tool selection
 without scraping logs or Prometheus.
 """
 
+import asyncio
 import json
+import os
 import time
 from contextlib import asynccontextmanager
 
@@ -33,11 +35,44 @@ conversation_history: dict[str, list] = {}
 MAX_HISTORY_MESSAGES = 20
 
 
+_agent_lock = asyncio.Lock()
+_startup_error: str | None = None
+
+
+async def get_agent():
+    """
+    Returns the agent, building it on first use if startup could not.
+
+    build_agent() opens an SSE connection to the MCP server, so it fails
+    whenever that service is not yet reachable. On Cloud Run that would
+    crashloop the container and fail the deployment, even though the MCP server
+    might come up moments later. So startup tolerates the failure and the
+    connection is retried here, on demand.
+    """
+    global agent_executor, _startup_error
+    if agent_executor is not None:
+        return agent_executor
+    async with _agent_lock:
+        if agent_executor is not None:  # built while we waited for the lock
+            return agent_executor
+        agent_executor = await build_agent()
+        _startup_error = None
+        print("Agent ready (built on demand).")
+        return agent_executor
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global agent_executor
-    agent_executor = await build_agent()
-    print("Agent ready.")
+    global agent_executor, _startup_error
+    try:
+        agent_executor = await build_agent()
+        print("Agent ready.")
+    except Exception as exc:
+        # Start anyway so the health check passes and the MCP connection can be
+        # retried per request rather than taking the whole service down.
+        _startup_error = f"{type(exc).__name__}: {exc}"
+        print(f"WARNING: agent build failed at startup ({_startup_error}). "
+              f"Will retry on first request.")
     yield
     agent_executor = None
 
@@ -142,10 +177,15 @@ async def chat(request: ChatRequest):
     sent_count = len(history)
 
     try:
-        result = await agent_executor.ainvoke({"messages": history})
+        executor = await get_agent()
+        result = await executor.ainvoke({"messages": history})
     except Exception as exc:
         chat_requests.labels(status="error").inc()
         chat_latency.observe(time.time() - start)
+        # Drop the turn we just appended so a failed request does not leave a
+        # dangling user message that skews the next turn's context.
+        if history and history[-1].content == request.message:
+            history.pop()
         return ChatResponse(
             response=f"The agent failed to complete this turn: {exc}",
             session_id=session_id,
@@ -186,7 +226,15 @@ def reset_session(session_id: str):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "active_sessions": len(conversation_history)}
+    # Reports ok even when the agent has not been built yet, so a transient MCP
+    # outage does not fail the Cloud Run health check. agent_ready distinguishes
+    # "serving" from "fully wired".
+    return {
+        "status": "ok",
+        "agent_ready": agent_executor is not None,
+        "startup_error": _startup_error,
+        "active_sessions": len(conversation_history),
+    }
 
 
 @app.get("/meta")
@@ -205,4 +253,4 @@ def meta():
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8002)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8002")))

@@ -4,6 +4,8 @@ Exposes recommendation, search, and similarity tools for LLM agents
 via the Model Context Protocol using FastMCP.
 """
 
+import os
+
 from fastmcp import FastMCP
 from tools.recommendations import get_recommendations
 from tools.search import search_movies
@@ -38,5 +40,11 @@ mcp.tool()(get_similar)
 mcp.tool()(get_for_you)
 
 if __name__ == "__main__":
-    mcp.run(transport="sse", port= 8001)
+    # Cloud Run injects PORT and requires binding 0.0.0.0; the default 127.0.0.1
+    # would make the container unreachable and fail the health check.
+    mcp.run(
+        transport="sse",
+        host=os.getenv("HOST", "0.0.0.0"),
+        port=int(os.getenv("PORT", "8001")),
+    )
 

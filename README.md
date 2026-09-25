@@ -301,9 +301,21 @@ movie_recommender/
 │       └── main.py                      /chat, tool-call extraction, /meta
 ├── eval_offline/                        recommender evaluation (21 tests)
 ├── eval_agent/                          behavioural benchmark (52 cases, 52 tests)
-├── frontend/src/App.jsx
+├── frontend/
+│   ├── Dockerfile                       multi-stage: vite build, nginx serve
+│   ├── nginx.conf                       serves the bundle, proxies /api
+│   └── src/
+│       ├── api/client.js                base URLs, fetch wrappers
+│       ├── components/
+│       │   ├── chat/                    ChatTab, ToolTrace (agent trace)
+│       │   ├── forYou/                  pure CF surface, cold-start banner
+│       │   ├── discover/                seed-anchored search
+│       │   ├── evaluation/              renders committed eval JSON
+│       │   └── layout/                  ProfileSwitcher
+│       └── data/                        demo users + eval result JSON
 ├── docs/
 │   ├── technical-walkthrough.md         architecture and decision rationale
+│   ├── linkedin-description.md
 │   └── ui-plan.md
 ├── prometheus/prometheus.yml
 ├── .github/workflows/test.yml
@@ -314,45 +326,74 @@ movie_recommender/
 
 ## Running locally
 
-**Prerequisites:** Python 3.11, Node 18+, an OpenAI API key for the agent.
+**Prerequisites:** Docker, Node 18+ (for the frontend), and an OpenAI API key
+for the agent.
+
+**Dataset** — download [The Movies Dataset](https://www.kaggle.com/datasets/rounakbanik/the-movies-dataset)
+and place these four files in `services/backend/data/raw/`:
+`movies_metadata.csv`, `ratings_small.csv`, `credits.csv`, `links_small.csv`.
+They are mounted read-only into the backend container, never copied into the
+image.
+
+### With Docker Compose
+
+One command runs everything, frontend included:
 
 ```bash
-git clone https://github.com/tpatil17/Movie_recommender
-cd Movie_recommender
+export OPENAI_API_KEY=sk-...
+docker compose up --build
+```
 
-python -m venv venv
-source venv/bin/activate
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:5173 |
+| Backend API | http://localhost:8000/docs |
+| MCP server | http://localhost:8001/sse |
+| Agent | http://localhost:8002/health |
+| Prometheus | http://localhost:9090 |
+| Grafana | http://localhost:3001 (admin / admin) |
+
+The frontend image is a multi-stage build: Vite compiles the bundle, then nginx
+serves it and proxies `/api` to the backend — taking over the job the Vite dev
+proxy does in development. That means **no hot reload**; UI changes need
+`docker compose up --build frontend`. For active UI work, run the dev server on
+the host instead:
+
+```bash
+docker compose up --build backend mcp-server agent
+cd frontend && npm install && npm run dev
+```
+
+The backend trains SVD and builds the TF-IDF matrix at startup, so first boot
+takes a couple of minutes. Compose waits on its healthcheck before starting the
+MCP server, and on the MCP server before starting the agent — the agent builds
+its executor by connecting to MCP over SSE, so that ordering matters.
+
+### Without Docker
+
+```bash
+python -m venv venv && source venv/bin/activate
 pip install --upgrade pip setuptools wheel
 pip install numpy==1.26.4 Cython
 pip install git+https://github.com/NicolasHug/Surprise.git
 pip install -r services/backend/requirements.txt
+pip install -r services/mcp-server/requirements.txt
+pip install -r services/agent/requirements.txt
 ```
 
-**Dataset** — download [The Movies Dataset](https://www.kaggle.com/datasets/rounakbanik/the-movies-dataset)
-and place these in `services/backend/data/raw/`:
-`movies_metadata.csv`, `ratings_small.csv`, `credits.csv`, `links_small.csv`.
+Then, in four terminals — **MCP server before agent**, for the reason above:
 
 ```bash
-# backend
-cd services/backend && uvicorn app.main:app --port 8000
-
-# MCP server
-cd services/mcp-server && pip install -r requirements.txt && python main.py
-
-# agent (needs OPENAI_API_KEY)
-cd services/agent && pip install -r requirements.txt && python main.py
-
-# frontend
-cd frontend && npm install && npm run dev
+cd services/backend   && uvicorn app.main:app --port 8000
+cd services/mcp-server && python main.py
+cd services/agent     && python main.py      # needs OPENAI_API_KEY
+cd frontend           && npm run dev
 ```
 
-Open `http://localhost:5173`. The backend alone is enough for the REST API;
-the MCP server and agent are only needed for the chat surface.
+The backend alone is enough for the REST API and for the For You, Discover and
+Evaluation tabs; the MCP server and agent are only needed for chat.
 
-> **Known issue:** `docker-compose up` does not currently work. The backend
-> Dockerfile serves port 8080 while compose maps 8000, and compose sets
-> `BACKEND_URL` without the `/api` prefix the MCP tools expect. Run the
-> services directly as above until this is fixed.
+For a reproducible benchmark run, start the agent with `AGENT_TEMPERATURE=0`.
 
 ---
 
@@ -388,7 +429,7 @@ MovieLens is 26M ratings; results here may not hold at that scale.
 | Conversation state in-process | A dict capped at 20 messages; does not survive restart or scale past one instance. |
 | Content feature weights hand-tuned | Director repeated 3×, genres 2× in the TF-IDF "soup" — never validated against the harness. |
 | Behavioural baseline not captured | Harness complete, no run recorded. |
-| Docker Compose broken | See the port/prefix issue above. |
+| Local deployment only | Runs via Docker Compose on one machine. The agent holds session state in process and builds its executor from a live MCP connection at startup, so a multi-instance deployment would need external session storage and a warm MCP service. |
 
 ---
 

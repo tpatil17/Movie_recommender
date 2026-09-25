@@ -1,36 +1,97 @@
-version: '3.8'
+# Local full-stack run. `docker compose up --build`
+#
+# Fixes three bugs that previously made this non-functional:
+#   - the backend serves ${PORT} (8080 in-container), so the mapping is 8000:8080
+#   - BACKEND_URL needs the /api prefix the MCP tools call
+#   - the agent service was missing entirely
+#
+# The agent cannot build its executor until the MCP server is serving, so
+# startup order is enforced with a healthcheck rather than plain depends_on.
 
 services:
   backend:
     build: ./services/backend
     ports:
-      - "8000:8000"
+      - "8000:8080"
     environment:
-      - DATA_DIR=/app/data
+      - PORT=8080
+      # Unset by default, so loader.py reads CSVs from the mounted volume.
+      # Set GCS_BUCKET to pull from Cloud Storage instead.
+      - GCS_BUCKET=${GCS_BUCKET:-}
+    volumes:
+      # Data is excluded from the image via .dockerignore, so it is mounted for
+      # local runs. Read-only: nothing should ever write to the raw dataset.
+      - ./services/backend/data:/app/data:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/health').status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      # Models train at startup, so allow generous time before marking unhealthy.
+      start_period: 180s
+      retries: 20
 
   mcp-server:
     build: ./services/mcp-server
     ports:
       - "8001:8001"
     environment:
-      - BACKEND_URL=http://backend:8000
+      - PORT=8001
+      # The /api prefix is required — the tools call ${BACKEND_URL}/recommendations.
+      - BACKEND_URL=http://backend:8080/api
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket,sys; s=socket.create_connection(('localhost',8001),3); s.close()"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 10
+
+  agent:
+    build: ./services/agent
+    ports:
+      - "8002:8002"
+    environment:
+      - PORT=8002
+      - MCP_SERVER_URL=http://mcp-server:8001/sse
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY must be set}
+      - AGENT_TEMPERATURE=${AGENT_TEMPERATURE:-0.7}
+      - AGENT_TAG=${AGENT_TAG:-v2-for-you}
+    depends_on:
+      mcp-server:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Empty so the bundle calls /api relative and nginx proxies it.
+        VITE_API_URL: ""
+        # Absolute: the browser reaches the agent on the published host port,
+        # not over the compose network.
+        VITE_AGENT_URL: "http://localhost:8002"
+    ports:
+      - "5173:80"
     depends_on:
       - backend
-      
+      - agent
+
   prometheus:
     image: prom/prometheus:latest
     ports:
       - "9090:9090"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - backend
+      - agent
 
   grafana:
     image: grafana/grafana:latest
     ports:
       - "3001:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
     depends_on:
       - prometheus

@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+# The OpenAI key comes from Secret Manager, never from a baked-in file.
+.env
+*.md

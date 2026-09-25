@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.firebase/
+.git/
+*.md
+.env
+.env.local
+# .env.production points at the Cloud Run backend; the container proxies to the
+# compose backend instead, so it must not leak into the build.
+.env.production
