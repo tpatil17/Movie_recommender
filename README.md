@@ -62,12 +62,22 @@ All numbers below are reproducible from this repository. Run
 `eval_offline/eval_offline.py`; results are written to `eval_offline/results/`
 as paired markdown and JSON.
 
-### Offline results
+### What the offline harness measures, and what it does not
+
+**The task being scored is the open-ended one:** "given this user, which ten
+titles from the catalogue will they rate ≥ 4.0?" The relevance set is every
+title the user rated ≥ 4.0 in their held-out split, with no reference to any
+seed movie.
+
+That target matches "recommend for me." It does **not** match "movies like X,"
+whose honest target would be seed-conditioned — titles similar to the seed that
+the user also liked. So the table below answers one product question — *which
+path should serve an untargeted request?* — and is **not** a general ranking of
+the two methods. The hybrid is scored here on a task it was not designed for.
+Its own evaluation is further down.
 
 300 users, K = 10, relevance = rated ≥ 4.0, per-user 70/30 split, SVD trained
-on the train split only.
-
-Figures below are copied verbatim from
+on the train split only. Figures copied verbatim from
 `eval_offline/results/offline-three-way-20260804T234956Z.json`.
 
 | metric@10 | pure CF | seed-anchored hybrid | popularity baseline |
@@ -77,23 +87,62 @@ Figures below are copied verbatim from
 | NDCG | 0.0878 | 0.0386 | **0.1948** |
 | catalog coverage | 0.0051 | 0.0191 | 0.0009 |
 
+The decision this drove: before this run, an open-ended request was served by the
+hybrid picking a seed and running seed-anchored retrieval. It is a poor
+substitute for ranking the whole pool, so `/recommendations/for-you` was built.
+
 **A popularity baseline beats both personalised methods on precision@10** — on
 the full catalogue and on the long tail with the 200 most-popular titles removed
-(0.0313 vs 0.0204 for CF, see `offline-tail-*.json`). This is reported rather
-than omitted, with three caveats that matter:
+(0.0313 vs 0.0204 for CF, see `offline-tail-*.json`). Reported rather than
+omitted, with three caveats that matter:
 
-1. On MovieLens, what users rate is overwhelmingly what is popular, so a
-   non-personalised baseline is genuinely hard to beat on precision@10.
+1. Precision@10 on logged ratings is structurally biased toward popular items.
+   A model can only be scored on titles the user chose to rate, and what users
+   are exposed to is driven by popularity — so the relevance set is
+   popularity-skewed before any model touches it.
 2. Random selection from the 42,277-title catalogue scores ≈ 0.0006. CF at
    0.0777 is roughly 130× random — the signal is real, it just loses to
    popularity on this metric.
-3. Coverage inverts the ranking. Popularity recommends the same ~10 titles to
-   every user (0.0009). The personalised methods actually differentiate.
+3. Coverage inverts the ranking. Popularity recommends about 38 distinct titles
+   across all 300 users (0.0009) — effectively one list for everyone, with no
+   long-tail discovery and no path to improve as users rate more.
 
-### Why the hybrid underperforms
+### Why the baseline is not the product
 
-Diagnostics isolated the cause. The seed-anchored hybrid retrieves 25
-content-neighbours of one movie and re-ranks them with SVD:
+Popularity **is** used, scoped to where it is genuinely optimal: the cold-start
+branch of `/recommendations/for-you`, where a user with no history has no learned
+SVD factors and every prediction would collapse to the global mean. That case is
+labelled `cold_start: true` rather than presented as personalised.
+
+It is not the general path because it cannot personalise, has no improvement
+path, and surfaces titles a user has most likely already seen. The architecture
+this evidence argues for is a popularity prior that collaborative signal
+overrides as evidence accumulates — which is what the cold-start fallback plus
+CF ranking implements.
+
+The honest limit: precision@10 offline is a proxy. Whether popularity wins on
+engagement or retention is an online A/B question that held-out ratings cannot
+answer.
+
+### Evaluating the hybrid on its own terms
+
+The correct baseline for "movies like X" is not CF — it is the same candidate set
+ordered by content similarity alone. Does the collaborative layer add anything to
+a fixed pool?
+
+| ordering of the same 25 candidates | precision@10 |
+|---|---|
+| content similarity only | 0.0233 |
+| CF re-ranked (the hybrid) | 0.0250 |
+
+CF re-ranking adds roughly 7%. Small but real, and correctly scoped: mean
+predicted-rating spread across a pool is 0.993, so SVD is discriminating rather
+than returning a flat score.
+
+### Why the hybrid is retrieval-bound
+
+This diagnosis is computed **within the hybrid's own candidate pool**, so it does
+not depend on any cross-task comparison:
 
 | measure | value |
 |---|---|
@@ -107,8 +156,11 @@ never the bottleneck** — no amount of score tuning could have helped, because
 the relevant movies were not in the pool. Two causes: `get_similar_movies`
 applied its `vote_count` filter *after* slicing to the top 25, collapsing the
 pool; and single-seed retrieval structurally cannot represent a user's whole
-taste profile. The fix was candidate generation, which is what the pure-CF path
-is.
+taste profile.
+
+For the open-ended task, the fix was therefore candidate generation, which is
+what the pure-CF path is. For the "movies like X" task, the fix is filtering
+before slicing so the pool is the intended 25.
 
 ### Behavioural benchmark
 
