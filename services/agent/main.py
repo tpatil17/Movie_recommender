@@ -18,7 +18,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from prometheus_client import make_asgi_app
 from pydantic import BaseModel
 
-from agent.chain import build_agent
+from agent.chain import build_agent, AGENT_TAG, AGENT_TEMPERATURE
 from metrics import (
     active_sessions,
     chat_latency,
@@ -187,6 +187,21 @@ def reset_session(session_id: str):
 @app.get("/health")
 def health():
     return {"status": "ok", "active_sessions": len(conversation_history)}
+
+
+@app.get("/meta")
+def meta():
+    """
+    Reports what the running agent actually is, so a benchmark report can
+    never be attributed to the wrong configuration. The harness records this
+    verbatim; without it, comparing two runs relies on remembering what was
+    deployed at the time.
+    """
+    return {
+        "agent_tag": AGENT_TAG,
+        "temperature": AGENT_TEMPERATURE,
+        "tools": sorted(t.name for t in getattr(agent_executor, "tools", [])) or None,
+    }
 
 
 if __name__ == "__main__":

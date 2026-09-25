@@ -40,6 +40,12 @@ jobs:
       - name: Run offline eval metric tests
         run: pytest eval_offline/test_eval_offline.py -v
 
+      # Deterministic behavioural checks for the agent. Pure functions over
+      # synthetic payloads - no agent, no MCP server, no OpenAI key - so the
+      # benchmark's assertions are themselves verified on every push.
+      - name: Run agent behavioural check tests
+        run: pytest eval_agent/test_checks.py -v
+
       - name: Run backend tests
         env:
           CI: true
